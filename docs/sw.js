@@ -1,4 +1,4 @@
-const CACHE = 'quiz-v5';
+const CACHE = 'quiz-v6';
 const CORE = ['./', 'index.html', 'app.js', 'style.css', 'firebase-config.js', 'manifest.webmanifest',
   'data/bank.json', 'data/past.json', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-180.png'];
 self.addEventListener('install', e => {
