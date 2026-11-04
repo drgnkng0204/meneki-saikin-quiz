@@ -41,6 +41,7 @@ async function initCloud() {
     cloud.fs = fs; cloud.db = db; cloud.state = 'ok';
   } catch (e) { console.warn('Firebase init failed', e); cloud.state = 'offline'; }
   paintSync();
+  syncNames();
 }
 function paintSync() {
   const el = document.getElementById('sync'); if (!el) return;
@@ -70,9 +71,25 @@ async function pullCloud(u, s) {
     saveLocal(u, s);
   } catch (e) { console.warn('pull failed', e); }
 }
+const dirty = new Set(lsGet('quiz:namesDirty', []));
 async function pushNames(u) {
+  if (u) { dirty.add(u); lsSet('quiz:namesDirty', [...dirty]); }
   if (!cloud.db) return;
-  try { const { doc, setDoc } = cloud.fs; await setDoc(doc(cloud.db, 'profiles', u), { name: uname(u) }, { merge: true }); } catch { /* 次回送信 */ }
+  const { doc, setDoc } = cloud.fs;
+  for (const k of [...dirty]) {
+    try { await setDoc(doc(cloud.db, 'profiles', k), { name: uname(k) }, { merge: true }); dirty.delete(k); lsSet('quiz:namesDirty', [...dirty]); }
+    catch (e) { console.warn('name push failed', e); }
+  }
+}
+async function syncNames() {
+  if (!cloud.db) return;
+  await pushNames();
+  try {
+    const snap = await cloud.fs.getDocs(cloud.fs.collection(cloud.db, 'profiles'));
+    let ch = false;
+    snap.forEach(d => { const n = d.data().name; if (n && !dirty.has(d.id) && names[d.id] !== n) { names[d.id] = n; ch = true; } });
+    if (ch) { lsSet('quiz:names', names); if (S.route === 'users' || S.route === 'home') render(); }
+  } catch (e) { console.warn('name pull failed', e); }
 }
 async function fetchCompare(s) {
   const { collection, getDocs, query, where } = cloud.fs;
@@ -227,6 +244,8 @@ function vPlay() {
   const q = findQ(s.cur), it = data().items[q.id];
   const chName = bank[S.subject].chapters.find(c => c.id === q.ch)?.name || '';
   const left = s.queue.length + (s.shown ? 0 : 1);
+  const qs = bank[S.subject].qs, gi = qs.findIndex(x => x.id === q.id) + 1;
+  const ci = qs.filter(x => x.ch === q.ch).findIndex(x => x.id === q.id) + 1;
   let result = '';
   if (s.shown) {
     const it2 = data().items[q.id];
@@ -238,7 +257,7 @@ function vPlay() {
   return `${header(SUBJ[S.subject], 'quit')}
   <div class="meta"><span>残り ${left}問 / 全${s.n0}問</span><span>⭕ ${s.ok}　❌ ${s.ng}</span></div>
   <div class="bar"><i style="width:${pct(s.n0 - left + (s.shown ? 1 : 0), s.n0)}%"></i></div>
-  <div class="meta" style="margin-top:10px"><span>${esc(chName)}${it?.a ? `<span class="tag">${it.m ? '正解扱い' : '復習中'}</span>` : '<span class="tag">未回答</span>'}</span><span>${hintFor(q)}</span></div>
+  <div class="meta" style="margin-top:10px"><span><b class="qno">No.${gi}</b> ${esc(chName)}（章内${ci}）${it?.a ? `<span class="tag">${it.m ? '正解扱い' : '復習中'}</span>` : '<span class="tag">未回答</span>'}</span><span>${hintFor(q)}</span></div>
   <div class="qtext">${esc(q.text)}</div>
   ${optsHtml(q, s.sel, s.shown)}
   ${result}
@@ -353,7 +372,7 @@ document.addEventListener('click', async ev => {
   const act = t.dataset.act;
   if (act === 'rename') {
     ev.stopPropagation(); const u = t.dataset.u;
-    const v = prompt('表示名を入力(20文字まで)', uname(u)); if (v && v.trim()) { names[u] = v.trim().slice(0, 20); lsSet('quiz:names', names); pushNames(u); render(); }
+    const v = prompt('表示名を入力(20文字まで)', uname(u)); if (v && v.trim()) { names[u] = v.trim().slice(0, 20); lsSet('quiz:names', names); render(); pushNames(u); }
     return;
   }
   if (act === 'pick-user') {
