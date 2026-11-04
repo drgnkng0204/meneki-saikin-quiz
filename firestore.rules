@@ -1,0 +1,24 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 成績データ: ドキュメントID は user1_imm のような形式のみ許可
+    match /progress/{docId} {
+      allow read: if true;
+      allow create, update: if docId.matches('^user[1-8]_(imm|bac)$')
+        && request.resource.data.keys().hasOnly(['user', 'subject', 'name', 'items', 'past', 'updatedAt'])
+        && request.resource.data.user is string
+        && request.resource.data.subject in ['imm', 'bac']
+        && docId == request.resource.data.user + '_' + request.resource.data.subject
+        && request.resource.data.name is string && request.resource.data.name.size() <= 20;
+      allow delete: if false;
+    }
+    // 表示名
+    match /profiles/{userId} {
+      allow read: if true;
+      allow create, update: if userId.matches('^user[1-8]$')
+        && request.resource.data.keys().hasOnly(['name'])
+        && request.resource.data.name is string && request.resource.data.name.size() <= 20;
+      allow delete: if false;
+    }
+  }
+}

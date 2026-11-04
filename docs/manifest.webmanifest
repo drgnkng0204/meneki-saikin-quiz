@@ -1,0 +1,14 @@
+{
+  "name": "免疫・細菌学 演習",
+  "short_name": "免疫細菌演習",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#1f3a6e",
+  "theme_color": "#1f3a6e",
+  "icons": [
+    {"src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png"}
+  ]
+}
