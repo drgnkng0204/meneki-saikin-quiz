@@ -219,16 +219,22 @@ function startSession() {
 // ---------- 出題 ----------
 const qById = {};
 function findQ(id) { return qById[id]; }
+const ORD = {};
+const REF = /[①-⑩]|すべて|全て|いずれも|どれも|上記/;
+const canShuffle = q => !REF.test(q.opts.join('') + (q.expl || ''));
+function reshuffle(q) { const idx = q.opts.map((_, i) => i); ORD[q.id] = canShuffle(q) ? shuffle(idx) : idx; }
+function ordOf(q) { if (!ORD[q.id] || ORD[q.id].length !== q.opts.length) reshuffle(q); return ORD[q.id]; }
 function optsHtml(q, sel, shown, ok) {
   const chips = q.opts.length > 6 || q.kind === 'multiany';
   const lab = i => q.kind === 'multiany' ? String.fromCharCode(97 + i) : (q.opts.length <= 10 ? CIR[i] : '');
-  const items = q.opts.map((o, i) => {
+  const items = ordOf(q).map((i, pos) => {
+    const o = q.opts[i];
     let cls = 'opt';
     const isAns = q.ans.includes(i), isSel = sel.includes(i);
     if (shown) { if (isAns && isSel) cls += ' right'; else if (isSel) cls += ' wrong'; else if (isAns) cls += ' missed'; }
     else if (isSel) cls += ' sel';
     const text = q.kind === 'multiany' ? o.replace(/^[a-z]\s/, '') : o;
-    return `<button class="${cls}" data-act="opt" data-i="${i}" ${shown ? 'disabled' : ''}>${q.kind === 'multiany' || chips && q.opts.length > 10 ? '' : `<span class="n">${lab(i)}</span>`}<span>${q.kind === 'multiany' ? `<b>${lab(i)}</b> ` : ''}${esc(text)}</span></button>`;
+    return `<button class="${cls}" data-act="opt" data-i="${i}" ${shown ? 'disabled' : ''}>${q.kind === 'multiany' || chips && q.opts.length > 10 ? '' : `<span class="n">${lab(pos)}</span>`}<span>${q.kind === 'multiany' ? `<b>${lab(pos)}</b> ` : ''}${esc(text)}</span></button>`;
   }).join('');
   return chips ? `<div class="chips">${items}</div>` : items;
 }
@@ -240,7 +246,7 @@ function nextId() { return S.sess.queue[0]; }
 function vPlay() {
   const s = S.sess;
   if (!s.queue.length && !s.cur) return vSummaryBody();
-  if (!s.cur) { s.cur = s.queue.shift(); s.sel = []; s.shown = false; }
+  if (!s.cur) { s.cur = s.queue.shift(); s.sel = []; s.shown = false; reshuffle(findQ(s.cur)); }
   const q = findQ(s.cur), it = data().items[q.id];
   const chName = bank[S.subject].chapters.find(c => c.id === q.ch)?.name || '';
   const left = s.queue.length + (s.shown ? 0 : 1);
@@ -251,7 +257,7 @@ function vPlay() {
     const it2 = data().items[q.id];
     const sub = it2.m ? '✅ この問題は「正解扱い」になりました' : `あと${it2.need}回正解すると「正解扱い」になります(この後もう一度出題されます)`;
     result = `<div class="result ${s.lastOk ? 'ok' : 'ng'}">${s.lastOk ? '⭕ 正解' : '❌ 不正解'}<small>${sub}</small></div>
-    <div class="expl"><b>正解</b>${q.ans.map(i => esc(q.opts[i])).join(' / ')}</div>
+    <div class="expl"><b>正解</b>${ordOf(q).filter(i => q.ans.includes(i)).map(i => esc(q.opts[i])).join(' / ')}</div>
     <div class="expl"><b>解説</b>${esc(q.expl)}${q.pp?.length ? `<br><span class="note">講義スライド ${q.pp.map(p => 'p.' + p).join('・')}</span>` : ''}</div>`;
   }
   return `${header(SUBJ[S.subject], 'quit')}
@@ -403,7 +409,7 @@ document.addEventListener('click', async ev => {
   if (act === 'dontknow') { S.sess.sel = []; return answerCurrent(true); }
   if (act === 'next') return nextQuestion();
   if (act === 'past-list') return go('pastList');
-  if (act === 'open-exam') { S.exam = { id: t.dataset.e, i: 0, sel: {}, shown: {} }; return go('pastQ'); }
+  if (act === 'open-exam') { S.exam = { id: t.dataset.e, i: 0, sel: {}, shown: {} }; for (const k in ORD) delete ORD[k]; return go('pastQ'); }
   if (act === 'goto') { S.exam.i = +t.dataset.i; return render(); }
   if (act === 'prevq') { S.exam.i--; return render(); }
   if (act === 'nextq') { S.exam.i++; window.scrollTo(0, 0); return render(); }
