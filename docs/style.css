@@ -56,3 +56,11 @@ table.cmp th{color:var(--sub);font-weight:600;font-size:13px}
 .big.me{outline:2px solid var(--accent2)}
 a{color:var(--accent2)}
 .qno{color:var(--acc,#2563eb)}
+.oes{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.oe{border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.oe.a{border-color:#16a34a;background:rgba(22,163,74,.08)}
+.oe .oh{font-size:13px;margin-bottom:4px}
+.oe .mk{font-weight:700;color:#16a34a;margin-left:6px}
+.oe .mk.x{color:var(--sub);font-weight:600}
+.oe .ot{font-size:14px;font-weight:600;margin-bottom:4px}
+.oe .od{font-size:14px;line-height:1.6}

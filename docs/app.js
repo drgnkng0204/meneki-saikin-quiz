@@ -224,6 +224,16 @@ const REF = /[①-⑩]|すべて|全て|いずれも|どれも|上記/;
 const canShuffle = q => !REF.test(q.opts.join('') + (q.expl || ''));
 function reshuffle(q) { const idx = q.opts.map((_, i) => i); ORD[q.id] = canShuffle(q) ? shuffle(idx) : idx; }
 function ordOf(q) { if (!ORD[q.id] || ORD[q.id].length !== q.opts.length) reshuffle(q); return ORD[q.id]; }
+function oeHtml(q) {
+  if (!q.oe) return '';
+  const multi = q.kind === 'multiany';
+  const rows = ordOf(q).map((i, pos) => {
+    const isAns = q.ans.includes(i), lab = multi ? String.fromCharCode(97 + pos) : (q.opts.length <= 10 ? CIR[pos] : (pos + 1));
+    const txt = (multi ? q.opts[i].replace(/^[a-z]\s/, '') : q.opts[i]);
+    return `<div class="oe ${isAns ? 'a' : ''}"><div class="oh"><b>${lab}</b> ${isAns ? '<span class="mk">★ 正解の選択肢</span>' : '<span class="mk x">× 選ぶべきでない</span>'}</div><div class="ot">${esc(txt)}</div><div class="od">${esc(q.oe[i])}</div></div>`;
+  }).join('');
+  return `<div class="expl"><b>選択肢ごとの解説</b><div class="oes">${rows}</div></div>`;
+}
 function optsHtml(q, sel, shown, ok) {
   const chips = q.opts.length > 6 || q.kind === 'multiany';
   const lab = i => q.kind === 'multiany' ? String.fromCharCode(97 + i) : (q.opts.length <= 10 ? CIR[i] : '');
@@ -258,7 +268,7 @@ function vPlay() {
     const sub = it2.m ? '✅ この問題は「正解扱い」になりました' : `あと${it2.need}回正解すると「正解扱い」になります(この後もう一度出題されます)`;
     result = `<div class="result ${s.lastOk ? 'ok' : 'ng'}">${s.lastOk ? '⭕ 正解' : '❌ 不正解'}<small>${sub}</small></div>
     <div class="expl"><b>正解</b>${ordOf(q).filter(i => q.ans.includes(i)).map(i => esc(q.opts[i])).join(' / ')}</div>
-    <div class="expl"><b>解説</b>${esc(q.expl)}${q.pp?.length ? `<br><span class="note">講義スライド ${q.pp.map(p => 'p.' + p).join('・')}</span>` : ''}</div>`;
+    <div class="expl"><b>解説</b>${esc(q.expl)}${q.pp?.length ? `<br><span class="note">講義スライド ${q.pp.map(p => 'p.' + p).join('・')}</span>` : ''}</div>${oeHtml(q)}`;
   }
   return `${header(SUBJ[S.subject], 'quit')}
   <div class="meta"><span>残り ${left}問 / 全${s.n0}問</span><span>⭕ ${s.ok}　❌ ${s.ng}</span></div>
@@ -315,7 +325,7 @@ function vPastQ() {
   if (shown) {
     result = `<div class="result ${shown.ok ? 'ok' : 'ng'}">${shown.ok ? '⭕ 正解' : '❌ 不正解'}</div>
     <div class="expl"><b>正解</b>${q.ans.map(i => esc(q.kind === 'multiany' ? q.opts[i] : q.opts[i])).join(' / ')}</div>
-    <div class="expl"><b>解説</b>${esc(q.expl)}</div>`;
+    <div class="expl"><b>解説</b>${esc(q.expl)}</div>${oeHtml(q)}`;
   }
   const sel = x.sel[q.id] || [];
   return `${header(e.label, 'pastList')}
