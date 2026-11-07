@@ -442,7 +442,7 @@ document.addEventListener('keydown', ev => { if ((ev.key === 'Enter' || ev.key =
 // ---------- 起動 ----------
 async function boot() {
   try {
-    [bank, past] = await Promise.all([fetch('data/bank.json?v=6').then(r => r.json()), fetch('data/past.json?v=6').then(r => r.json())]);
+    [bank, past] = await Promise.all([fetch('data/bank.json?v=7').then(r => r.json()), fetch('data/past.json?v=7').then(r => r.json())]);
   } catch (e) { $app.innerHTML = '<p class="boot">問題データを読み込めませんでした。通信を確認して再読み込みしてください。</p>'; return; }
   for (const s of Object.keys(bank)) { for (const q of bank[s].qs) qById[q.id] = q; }
   render();
