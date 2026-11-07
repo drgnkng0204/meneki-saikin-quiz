@@ -175,7 +175,8 @@ function vMenu() {
   <div class="card"><h2>あなたの進み具合(予想問題)</h2><div>正解扱い <b>${st.mastered}</b> / ${st.total} 問　・　回答済み ${st.answered} 問</div><div class="bar"><i style="width:${pct(st.mastered, st.total)}%"></i></div></div>
   <button class="big" data-act="setup"><b>📝 予想問題を解く</b><small>ランダム出題 / 章ごと・続きから・復習</small></button><div style="height:10px"></div>
   <button class="big" data-act="past-list"><b>📚 過去問を演習する</b><small>年度を選んで1問ずつ「回答する」→解答・解説</small></button><div style="height:10px"></div>
-  ${s === 'bac' && bugs.length ? `<button class="big" data-act="bug-start"><b>🦠 細菌当てクイズ</b><small>特徴を1つずつ表示 → 菌名を当てる(自己採点)</small></button><div style="height:10px"></div>
+  ${s === 'bac' && bugs.length ? `<button class="big" data-act="bug-start" data-m="easy"><b>🦠 細菌当てクイズ【簡単モード】</b><small>岩谷先生「細菌学まとめ」(22-1028)に載っている${bugs.filter(b => b.easy).length}菌のみ</small></button><div style="height:10px"></div>
+  <button class="big" data-act="bug-start" data-m="all"><b>🦠 細菌当てクイズ【すべてモード】</b><small>講義全体の${bugs.length}菌 ・ 特徴を1つずつ表示 → 菌名を当てる</small></button><div style="height:10px"></div>
   <button class="big" data-act="bug-list"><b>📖 細菌一覧(詳細・類似菌)</b><small>${bugs.length}菌 ・ 同じ特徴の菌・対照的な菌をまとめて確認</small></button><div style="height:10px"></div>` : ''}
   <button class="big" data-act="compare" data-s="${s}"><b>📊 成績を比較する</b><small>他のユーザーとの比較</small></button>`;
 }
@@ -348,20 +349,21 @@ function vPastQ() {
 // ---------- 細菌当てクイズ ----------
 const shuffleArr = a => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const bugTags = b => [...new Set([...b.props, b.oxy])];
+const inPool = b => S.bugMode !== 'easy' || b.easy;
 function bugChip(id, why) {
-  const b = bugById[id]; if (!b) return '';
+  const b = bugById[id]; if (!b || !inPool(b)) return '';
   return `<button class="chip bchip" data-act="bug-open" data-id="${id}">${esc(b.name.replace(/\(.*$/, ''))}${why ? `<small>${esc(why)}</small>` : ''}</button>`;
 }
 function bugBadges(b) { return `<div class="bbadges"><span class="bb gram">${esc(b.gram)}</span><span class="bb oxy">${esc(b.oxy)}</span></div>`; }
 function bugGroups(b) {
   const rows = bugTags(b).map(t => {
-    const o = bugs.filter(x => x.id !== b.id && bugTags(x).includes(t));
+    const o = bugs.filter(x => x.id !== b.id && inPool(x) && bugTags(x).includes(t));
     return o.length ? `<div class="grp"><div class="gt">${esc(t)}<span class="tag">${o.length + 1}菌</span></div><div class="chips">${o.map(x => bugChip(x.id)).join('')}</div></div>` : '';
   }).join('');
   return `<div class="card"><h2>同じ特徴をもつ菌(タップで詳細)</h2>${rows || '<p class="note">なし</p>'}</div>`;
 }
 function bugRel(b) {
-  const l = (arr, h) => arr.length ? `<div class="grp"><div class="gt">${h}</div><div class="chips">${arr.map(([k, w]) => bugChip(k, w)).join('')}</div></div>` : '';
+  const l = (arr, h) => (arr = arr.filter(([k]) => inPool(bugById[k]))).length ? `<div class="grp"><div class="gt">${h}</div><div class="chips">${arr.map(([k, w]) => bugChip(k, w)).join('')}</div></div>` : '';
   const s = l(b.con, '⇄ 対照的な菌(鑑別)') + l(b.rel, '🔗 関連する菌');
   return s ? `<div class="card"><h2>対照・関連</h2>${s}</div>` : '';
 }
@@ -381,7 +383,7 @@ function vBugQ() {
     <button class="btn" data-act="bug-nextq">${q.i + 1 < q.order.length ? '次の菌へ ›' : '終了'}</button>`}`;
   }
   return `${header('細菌当てクイズ', 'menu')}
-  <div class="meta"><span>${q.i + 1} / ${q.order.length}</span><span>特徴 ${q.n}/${n}</span></div>
+  <div class="meta"><span>${S.bugMode === 'easy' ? '簡単モード' : 'すべてモード'} ${q.i + 1} / ${q.order.length}</span><span>特徴 ${q.n}/${n}</span></div>
   <div class="card">${bugBadges(b)}<ol class="hints">${hs}</ol></div>${body}`;
 }
 function vBugDetail() {
@@ -457,12 +459,12 @@ document.addEventListener('click', async ev => {
   }
   if (act === 'switch-user') { if (S.sess?.cur && !S.sess.shown && !confirm('出題を中断してユーザーを切り替えますか?')) return; go('users'); return; }
   if (act === 'subject') { S.subject = t.dataset.s; S.setup = null; await pullCloud(S.user, S.subject); go('menu'); return; }
-  if (act === 'bug-start') { S.bq = { order: shuffleArr(bugs.map(b => b.id)), i: 0, n: 1, reveal: false }; return go('bugQ'); }
+  if (act === 'bug-start') { S.bugMode = t.dataset.m; S.bq = { order: shuffleArr(bugs.filter(inPool).map(b => b.id)), i: 0, n: 1, reveal: false }; return go('bugQ'); }
   if (act === 'bug-next') { S.bq.n++; return render(); }
   if (act === 'bug-reveal') { S.bq.reveal = true; return render(); }
   if (act === 'bug-grade') { const ok = t.dataset.v === '1'; S.bq.graded = ok; recordPast('bug-' + S.bq.order[S.bq.i], ok); return render(); }
   if (act === 'bug-nextq') { const q = S.bq; if (q.i + 1 >= q.order.length) { S.bq = null; return go('menu'); } q.i++; q.n = 1; q.reveal = false; q.graded = undefined; return go('bugQ'); }
-  if (act === 'bug-list') return go('bugList');
+  if (act === 'bug-list') { S.bugMode = 'all'; return go('bugList'); }
   if (act === 'bug-open') { S.bugBack = S.route === 'bugDetail' ? S.bugBack : S.route; S.bugId = t.dataset.id; return go('bugDetail'); }
   if (act === 'back') {
     if (t.dataset.to === 'bugBack') { const to = S.bugBack || 'bugList'; return go(to); }
@@ -509,8 +511,8 @@ document.addEventListener('keydown', ev => { if ((ev.key === 'Enter' || ev.key =
 // ---------- 起動 ----------
 async function boot() {
   try {
-    [bank, past] = await Promise.all([fetch('data/bank.json?v=8').then(r => r.json()), fetch('data/past.json?v=8').then(r => r.json())]);
-    try { bugs = await fetch('data/bugs.json?v=8').then(r => r.json()); for (const b of bugs) bugById[b.id] = b; } catch (e) { bugs = []; }
+    [bank, past] = await Promise.all([fetch('data/bank.json?v=9').then(r => r.json()), fetch('data/past.json?v=9').then(r => r.json())]);
+    try { bugs = await fetch('data/bugs.json?v=9').then(r => r.json()); for (const b of bugs) bugById[b.id] = b; } catch (e) { bugs = []; }
   } catch (e) { $app.innerHTML = '<p class="boot">問題データを読み込めませんでした。通信を確認して再読み込みしてください。</p>'; return; }
   for (const s of Object.keys(bank)) { for (const q of bank[s].qs) qById[q.id] = q; }
   render();
