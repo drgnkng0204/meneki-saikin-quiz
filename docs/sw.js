@@ -1,6 +1,6 @@
-const CACHE = 'quiz-v7';
+const CACHE = 'quiz-v8';
 const CORE = ['./', 'index.html', 'app.js', 'style.css', 'firebase-config.js', 'manifest.webmanifest',
-  'data/bank.json', 'data/past.json', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-180.png'];
+  'data/bank.json', 'data/past.json', 'data/bugs.json', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-180.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE)).then(() => self.skipWaiting()));
 });

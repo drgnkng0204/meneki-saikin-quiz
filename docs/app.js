@@ -6,7 +6,8 @@ const USER_IDS = Array.from({ length: 8 }, (_, i) => 'user' + (i + 1));
 const NEED_AFTER_MISS = 2; // 不正解後、あと2回正解で「正解扱い」
 const $app = document.getElementById('app');
 
-let bank = null, past = null;
+let bank = null, past = null, bugs = [];
+const bugById = {};
 const S = { user: lsGet('quiz:user'), subject: null, route: 'users', sess: null, exam: null };
 const names = lsGet('quiz:names', {});
 const store = {}; // store[user][subject] = {items:{}, past:{}}
@@ -147,7 +148,7 @@ function header(title, back) {
 }
 function go(route, extra = {}) { Object.assign(S, extra, { route }); render(); window.scrollTo(0, 0); }
 function render() {
-  const r = { users: vUsers, home: vHome, menu: vMenu, setup: vSetup, play: vPlay, summary: vSummary, pastList: vPastList, pastQ: vPastQ, compare: vCompare }[S.route];
+  const r = { bugQ: vBugQ, bugDetail: vBugDetail, bugList: vBugList, users: vUsers, home: vHome, menu: vMenu, setup: vSetup, play: vPlay, summary: vSummary, pastList: vPastList, pastQ: vPastQ, compare: vCompare }[S.route];
   $app.innerHTML = r();
   paintSync();
   if (S.route === 'compare') loadCompare();
@@ -174,6 +175,8 @@ function vMenu() {
   <div class="card"><h2>あなたの進み具合(予想問題)</h2><div>正解扱い <b>${st.mastered}</b> / ${st.total} 問　・　回答済み ${st.answered} 問</div><div class="bar"><i style="width:${pct(st.mastered, st.total)}%"></i></div></div>
   <button class="big" data-act="setup"><b>📝 予想問題を解く</b><small>ランダム出題 / 章ごと・続きから・復習</small></button><div style="height:10px"></div>
   <button class="big" data-act="past-list"><b>📚 過去問を演習する</b><small>年度を選んで1問ずつ「回答する」→解答・解説</small></button><div style="height:10px"></div>
+  ${s === 'bac' && bugs.length ? `<button class="big" data-act="bug-start"><b>🦠 細菌当てクイズ</b><small>特徴を1つずつ表示 → 菌名を当てる(自己採点)</small></button><div style="height:10px"></div>
+  <button class="big" data-act="bug-list"><b>📖 細菌一覧(詳細・類似菌)</b><small>${bugs.length}菌 ・ 同じ特徴の菌・対照的な菌をまとめて確認</small></button><div style="height:10px"></div>` : ''}
   <button class="big" data-act="compare" data-s="${s}"><b>📊 成績を比較する</b><small>他のユーザーとの比較</small></button>`;
 }
 
@@ -341,6 +344,62 @@ function vPastQ() {
     <button class="btn sec" data-act="nextq" ${x.i === e.qs.length - 1 ? 'disabled' : ''}>次へ ›</button></div></div>`;
 }
 
+
+// ---------- 細菌当てクイズ ----------
+const shuffleArr = a => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const bugTags = b => [...new Set([...b.props, b.oxy])];
+function bugChip(id, why) {
+  const b = bugById[id]; if (!b) return '';
+  return `<button class="chip bchip" data-act="bug-open" data-id="${id}">${esc(b.name.replace(/\(.*$/, ''))}${why ? `<small>${esc(why)}</small>` : ''}</button>`;
+}
+function bugBadges(b) { return `<div class="bbadges"><span class="bb gram">${esc(b.gram)}</span><span class="bb oxy">${esc(b.oxy)}</span></div>`; }
+function bugGroups(b) {
+  const rows = bugTags(b).map(t => {
+    const o = bugs.filter(x => x.id !== b.id && bugTags(x).includes(t));
+    return o.length ? `<div class="grp"><div class="gt">${esc(t)}<span class="tag">${o.length + 1}菌</span></div><div class="chips">${o.map(x => bugChip(x.id)).join('')}</div></div>` : '';
+  }).join('');
+  return `<div class="card"><h2>同じ特徴をもつ菌(タップで詳細)</h2>${rows || '<p class="note">なし</p>'}</div>`;
+}
+function bugRel(b) {
+  const l = (arr, h) => arr.length ? `<div class="grp"><div class="gt">${h}</div><div class="chips">${arr.map(([k, w]) => bugChip(k, w)).join('')}</div></div>` : '';
+  const s = l(b.con, '⇄ 対照的な菌(鑑別)') + l(b.rel, '🔗 関連する菌');
+  return s ? `<div class="card"><h2>対照・関連</h2>${s}</div>` : '';
+}
+function vBugQ() {
+  const q = S.bq, b = bugById[q.order[q.i]], n = b.hints.length;
+  const hs = b.hints.slice(0, q.n).map((h, i) => `<li><span class="hn">${i + 1}</span>${esc(h)}</li>`).join('');
+  let body = '';
+  if (!q.reveal) {
+    body = `${q.n < n ? `<button class="btn" data-act="bug-next">次の特徴を表示 (${q.n}/${n})</button><div style="height:10px"></div>` : ''}
+    <button class="btn ${q.n < n ? 'sec' : ''}" data-act="bug-reveal">答えを表示</button>`;
+  } else {
+    body = `<div class="card ans"><div class="note">答え</div><div class="bname">${esc(b.name)}</div><div class="note">${esc(b.sci)}</div></div>
+    ${q.graded === undefined ? `<div class="row"><button class="btn ok" data-act="bug-grade" data-v="1">⭕ 正解</button><button class="btn ng" data-act="bug-grade" data-v="0">❌ 不正解</button></div>` :
+      `<div class="result ${q.graded ? 'ok' : 'ng'}">${q.graded ? '⭕ 正解として記録' : '❌ 不正解として記録'}</div>`}
+    ${q.graded === undefined ? '' : `${bugGroups(b)}${bugRel(b)}
+    <button class="btn sec" data-act="bug-open" data-id="${b.id}">この菌の詳細を見る</button><div style="height:10px"></div>
+    <button class="btn" data-act="bug-nextq">${q.i + 1 < q.order.length ? '次の菌へ ›' : '終了'}</button>`}`;
+  }
+  return `${header('細菌当てクイズ', 'menu')}
+  <div class="meta"><span>${q.i + 1} / ${q.order.length}</span><span>特徴 ${q.n}/${n}</span></div>
+  <div class="card">${bugBadges(b)}<ol class="hints">${hs}</ol></div>${body}`;
+}
+function vBugDetail() {
+  const b = bugById[S.bugId];
+  const rows = b.rows.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join('');
+  return `${header(b.name, 'bugBack')}
+  <div class="card">${bugBadges(b)}<div class="note" style="margin-top:6px">${esc(b.sci)} ・ ${esc(b.sec)}</div>
+  <div class="chips" style="margin-top:8px">${b.props.map(p => `<span class="tag" style="margin:0">${esc(p)}</span>`).join('')}</div></div>
+  <div class="card"><h2>特徴(出題順)</h2><ol class="hints">${b.hints.map((h, i) => `<li><span class="hn">${i + 1}</span>${esc(h)}</li>`).join('')}</ol></div>
+  ${bugGroups(b)}${bugRel(b)}
+  <div class="card scroll"><h2>詳細まとめ(講義スライドより)</h2><table class="cmp bt">${rows}</table></div>`;
+}
+function vBugList() {
+  const secs = [...new Set(bugs.map(b => b.sec))];
+  return `${header('細菌一覧', 'menu')}<p class="note">名前をタップすると詳細ページに移動します。</p>` + secs.map(s =>
+    `<div class="card"><h2>${esc(s)}</h2><div class="chips">${bugs.filter(b => b.sec === s).map(b => bugChip(b.id)).join('')}</div></div>`).join('');
+}
+
 // ---------- 成績比較 ----------
 function vCompare() {
   const s = S.cmpSubject || S.subject || 'imm';
@@ -398,7 +457,15 @@ document.addEventListener('click', async ev => {
   }
   if (act === 'switch-user') { if (S.sess?.cur && !S.sess.shown && !confirm('出題を中断してユーザーを切り替えますか?')) return; go('users'); return; }
   if (act === 'subject') { S.subject = t.dataset.s; S.setup = null; await pullCloud(S.user, S.subject); go('menu'); return; }
+  if (act === 'bug-start') { S.bq = { order: shuffleArr(bugs.map(b => b.id)), i: 0, n: 1, reveal: false }; return go('bugQ'); }
+  if (act === 'bug-next') { S.bq.n++; return render(); }
+  if (act === 'bug-reveal') { S.bq.reveal = true; return render(); }
+  if (act === 'bug-grade') { const ok = t.dataset.v === '1'; S.bq.graded = ok; recordPast('bug-' + S.bq.order[S.bq.i], ok); return render(); }
+  if (act === 'bug-nextq') { const q = S.bq; if (q.i + 1 >= q.order.length) { S.bq = null; return go('menu'); } q.i++; q.n = 1; q.reveal = false; q.graded = undefined; return go('bugQ'); }
+  if (act === 'bug-list') return go('bugList');
+  if (act === 'bug-open') { S.bugBack = S.route === 'bugDetail' ? S.bugBack : S.route; S.bugId = t.dataset.id; return go('bugDetail'); }
   if (act === 'back') {
+    if (t.dataset.to === 'bugBack') { const to = S.bugBack || 'bugList'; return go(to); }
     const to = t.dataset.to;
     if (to === 'quit') { if (S.sess && S.sess.queue.length + (S.sess.shown ? 0 : 1) > 0 && !confirm('出題を終了しますか?(ここまでの記録は保存されています)')) return; S.sess = null; return go('menu'); }
     if (to === 'home') S.subject = null;
@@ -442,7 +509,8 @@ document.addEventListener('keydown', ev => { if ((ev.key === 'Enter' || ev.key =
 // ---------- 起動 ----------
 async function boot() {
   try {
-    [bank, past] = await Promise.all([fetch('data/bank.json?v=7').then(r => r.json()), fetch('data/past.json?v=7').then(r => r.json())]);
+    [bank, past] = await Promise.all([fetch('data/bank.json?v=8').then(r => r.json()), fetch('data/past.json?v=8').then(r => r.json())]);
+    try { bugs = await fetch('data/bugs.json?v=8').then(r => r.json()); for (const b of bugs) bugById[b.id] = b; } catch (e) { bugs = []; }
   } catch (e) { $app.innerHTML = '<p class="boot">問題データを読み込めませんでした。通信を確認して再読み込みしてください。</p>'; return; }
   for (const s of Object.keys(bank)) { for (const q of bank[s].qs) qById[q.id] = q; }
   render();
