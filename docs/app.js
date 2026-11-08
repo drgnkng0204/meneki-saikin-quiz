@@ -355,7 +355,7 @@ function bugChip(id, why) {
   const b = bugById[id]; if (!b || !inPool(b)) return '';
   return `<button class="chip bchip" data-act="bug-open" data-id="${id}">${esc(b.name.replace(/\(.*$/, ''))}${why ? `<small>${esc(why)}</small>` : ''}</button>`;
 }
-function bugBadges(b) { return `<div class="bbadges"><span class="bb gram">${esc(b.gram)}</span><span class="bb oxy">${esc(b.oxy)}</span></div>`; }
+function bugBadges(b) { return `<div class="bbadges"><span class="bb kd ${b.kingdom === '真菌' ? 'fg' : ''}">${esc(b.kingdom)}</span><span class="bb gram">${esc(b.gram)}</span><span class="bb oxy">${esc(b.oxy)}</span></div>`; }
 function bugGroups(b) {
   const rows = bugTags(b).map(t => {
     const o = bugs.filter(x => x.id !== b.id && inPool(x) && bugTags(x).includes(t));
@@ -525,9 +525,9 @@ document.addEventListener('keydown', ev => { if ((ev.key === 'Enter' || ev.key =
 // ---------- 起動 ----------
 async function boot() {
   try {
-    [bank, past] = await Promise.all([fetch('data/bank.json?v=10').then(r => r.json()), fetch('data/past.json?v=10').then(r => r.json())]);
-    try { bugs = await fetch('data/bugs.json?v=10').then(r => r.json()); for (const b of bugs) bugById[b.id] = b; } catch (e) { bugs = []; }
-    try { bgroups = await fetch('data/bgroups.json?v=10').then(r => r.json()); } catch (e) { bgroups = []; }
+    [bank, past] = await Promise.all([fetch('data/bank.json?v=11').then(r => r.json()), fetch('data/past.json?v=11').then(r => r.json())]);
+    try { bugs = await fetch('data/bugs.json?v=11').then(r => r.json()); for (const b of bugs) bugById[b.id] = b; } catch (e) { bugs = []; }
+    try { bgroups = await fetch('data/bgroups.json?v=11').then(r => r.json()); } catch (e) { bgroups = []; }
   } catch (e) { $app.innerHTML = '<p class="boot">問題データを読み込めませんでした。通信を確認して再読み込みしてください。</p>'; return; }
   for (const s of Object.keys(bank)) { for (const q of bank[s].qs) qById[q.id] = q; }
   render();
